@@ -1,0 +1,88 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+    
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y cmake build-essential
+    
+    - name: Install Python dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install pytest numpy matplotlib plotly dash
+        pip install pybind11
+    
+    - name: Configure CMake
+      run: |
+        mkdir build
+        cd build
+        cmake .. -DCMAKE_BUILD_TYPE=Release -DENABLE_TESTING=ON
+    
+    - name: Build
+      run: |
+        cd build
+        cmake --build . -j2
+    
+    - name: Run C++ tests
+      run: |
+        cd build
+        ctest -V
+    
+    - name: Install Python package
+      run: |
+        pip install -e .
+    
+    - name: Run Python tests
+      run: |
+        pytest -xvs python/tests/
+
+  code-quality:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+    
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y clang-tidy cppcheck
+        python -m pip install --upgrade pip
+        pip install pylint black mypy
+    
+    - name: Run clang-tidy
+      run: |
+        find src -name '*.cpp' -o -name '*.hpp' | xargs clang-tidy -checks=modernize*,performance*,readability*,bugprone*
+    
+    - name: Run cppcheck
+      run: |
+        cppcheck --enable=all --suppress=missingIncludeSystem src/
+    
+    - name: Run pylint
+      run: |
+        pylint --disable=C0111 python/dist_training_sim/
+    
+    - name: Check formatting
+      run: |
+        black --check python/dist_training_sim/
